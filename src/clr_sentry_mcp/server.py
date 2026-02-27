@@ -104,6 +104,21 @@ def sentry_get_issue(
     return data
 
 
+_MAX_STRING_LEN = 300
+
+
+def _truncate_rows(data: dict[str, Any]) -> dict[str, Any]:
+    """Truncate long string values in Discover/Events data rows."""
+    rows = data.get("data", data) if isinstance(data, dict) else data
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict):
+                for k, v in row.items():
+                    if isinstance(v, str) and len(v) > _MAX_STRING_LEN:
+                        row[k] = v[:_MAX_STRING_LEN] + f"... ({len(v)} chars total)"
+    return data
+
+
 # ── Insights / Discover tools ────────────────────────────────────────
 
 
@@ -141,7 +156,7 @@ def sentry_top_transactions(
     if project_slug:
         params["project"] = _client.resolve_project_id(project_slug)
     data, cursor = _client.get(_client.org_path("events/"), params)
-    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    result: dict[str, Any] = {"data": _truncate_rows(data).get("data", data), "meta": data.get("meta")}
     if cursor:
         result["next_cursor"] = cursor
     return result
@@ -182,7 +197,7 @@ def sentry_slow_db_queries(
     if project_slug:
         params["project"] = _client.resolve_project_id(project_slug)
     data, cursor = _client.get(_client.org_path("events/"), params)
-    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    result: dict[str, Any] = {"data": _truncate_rows(data).get("data", data), "meta": data.get("meta")}
     if cursor:
         result["next_cursor"] = cursor
     return result
@@ -223,7 +238,7 @@ def sentry_slow_http_requests(
     if project_slug:
         params["project"] = _client.resolve_project_id(project_slug)
     data, cursor = _client.get(_client.org_path("events/"), params)
-    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    result: dict[str, Any] = {"data": _truncate_rows(data).get("data", data), "meta": data.get("meta")}
     if cursor:
         result["next_cursor"] = cursor
     return result
@@ -264,7 +279,7 @@ def sentry_queue_performance(
     if project_slug:
         params["project"] = _client.resolve_project_id(project_slug)
     data, cursor = _client.get(_client.org_path("events/"), params)
-    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    result: dict[str, Any] = {"data": _truncate_rows(data).get("data", data), "meta": data.get("meta")}
     if cursor:
         result["next_cursor"] = cursor
     return result
@@ -316,7 +331,7 @@ def sentry_discover_query(
     if cursor:
         params["cursor"] = cursor
     data, next_cursor = _client.get(_client.org_path("events/"), params)
-    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    result: dict[str, Any] = {"data": _truncate_rows(data).get("data", data), "meta": data.get("meta")}
     if next_cursor:
         result["next_cursor"] = next_cursor
     return result
