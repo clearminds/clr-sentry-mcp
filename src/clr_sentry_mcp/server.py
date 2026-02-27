@@ -18,7 +18,17 @@ mcp = FastMCP("Sentry Extra")
 mcp.add_middleware(ToolValidationMiddleware())
 _client: SentryClient | None = None
 
-WRITE_TOOLS: list[str] = []
+WRITE_TOOLS: list[str] = [
+    "sentry_create_monitor",
+    "sentry_update_monitor",
+    "sentry_delete_monitor",
+    "sentry_create_issue_alert",
+    "sentry_update_issue_alert",
+    "sentry_delete_issue_alert",
+    "sentry_create_metric_alert",
+    "sentry_update_metric_alert",
+    "sentry_delete_metric_alert",
+]
 
 
 # ── Issue tools ─────────────────────────────────────────────────────
@@ -76,6 +86,699 @@ def sentry_get_issue(
         params["collapse"] = "release"
 
     return _client.get_simple(f"/issues/{numeric_id}/", params=params or None)
+
+
+# ── Insights / Discover tools ────────────────────────────────────────
+
+
+@mcp.tool
+def sentry_top_transactions(
+    project_slug: str | None = None,
+    stats_period: str = "24h",
+    limit: int = 10,
+    sort_by: str = "-p95(transaction.duration)",
+) -> dict[str, Any]:
+    """Get slowest endpoints/transactions ranked by response time.
+
+    Args:
+        project_slug: Filter to a specific project. Omit for all projects.
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        limit: Max results (default: 10, max: 100).
+        sort_by: Sort field (default: -p95(transaction.duration)).
+
+    Returns:
+        Table of transactions with count, p75, p95, and avg duration.
+    """
+    params: dict[str, Any] = {
+        "field": [
+            "transaction",
+            "count()",
+            "p75(transaction.duration)",
+            "p95(transaction.duration)",
+            "avg(transaction.duration)",
+        ],
+        "sort": sort_by,
+        "per_page": min(limit, 100),
+        "query": "event.type:transaction",
+        "statsPeriod": stats_period,
+    }
+    if project_slug:
+        params["project"] = project_slug
+    data, cursor = _client.get(_client.org_path("events/"), params)
+    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    if cursor:
+        result["next_cursor"] = cursor
+    return result
+
+
+@mcp.tool
+def sentry_slow_db_queries(
+    project_slug: str | None = None,
+    stats_period: str = "24h",
+    limit: int = 10,
+    sort_by: str = "-p95(span.duration)",
+) -> dict[str, Any]:
+    """Get slowest database queries.
+
+    Args:
+        project_slug: Filter to a specific project. Omit for all projects.
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        limit: Max results (default: 10, max: 100).
+        sort_by: Sort field (default: -p95(span.duration)).
+
+    Returns:
+        Table of DB queries with count, avg, p95, and total duration.
+    """
+    params: dict[str, Any] = {
+        "field": [
+            "span.description",
+            "count()",
+            "avg(span.duration)",
+            "p95(span.duration)",
+            "sum(span.duration)",
+        ],
+        "dataset": "spans",
+        "sort": sort_by,
+        "per_page": min(limit, 100),
+        "query": "span.op:db",
+        "statsPeriod": stats_period,
+    }
+    if project_slug:
+        params["project"] = project_slug
+    data, cursor = _client.get(_client.org_path("events/"), params)
+    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    if cursor:
+        result["next_cursor"] = cursor
+    return result
+
+
+@mcp.tool
+def sentry_slow_http_requests(
+    project_slug: str | None = None,
+    stats_period: str = "24h",
+    limit: int = 10,
+    sort_by: str = "-p95(span.duration)",
+) -> dict[str, Any]:
+    """Get slowest outbound HTTP requests.
+
+    Args:
+        project_slug: Filter to a specific project. Omit for all projects.
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        limit: Max results (default: 10, max: 100).
+        sort_by: Sort field (default: -p95(span.duration)).
+
+    Returns:
+        Table of HTTP requests with count, avg, p95, and total duration.
+    """
+    params: dict[str, Any] = {
+        "field": [
+            "span.description",
+            "count()",
+            "avg(span.duration)",
+            "p95(span.duration)",
+            "sum(span.duration)",
+        ],
+        "dataset": "spans",
+        "sort": sort_by,
+        "per_page": min(limit, 100),
+        "query": "span.op:http.client",
+        "statsPeriod": stats_period,
+    }
+    if project_slug:
+        params["project"] = project_slug
+    data, cursor = _client.get(_client.org_path("events/"), params)
+    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    if cursor:
+        result["next_cursor"] = cursor
+    return result
+
+
+@mcp.tool
+def sentry_queue_performance(
+    project_slug: str | None = None,
+    stats_period: str = "24h",
+    limit: int = 10,
+    sort_by: str = "-p95(span.duration)",
+) -> dict[str, Any]:
+    """Get queue/task worker performance.
+
+    Args:
+        project_slug: Filter to a specific project. Omit for all projects.
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        limit: Max results (default: 10, max: 100).
+        sort_by: Sort field (default: -p95(span.duration)).
+
+    Returns:
+        Table of queue operations with count, avg, and p95 duration.
+    """
+    params: dict[str, Any] = {
+        "field": [
+            "span.description",
+            "span.op",
+            "count()",
+            "avg(span.duration)",
+            "p95(span.duration)",
+        ],
+        "dataset": "spans",
+        "sort": sort_by,
+        "per_page": min(limit, 100),
+        "query": "span.op:queue.process OR span.op:queue.publish",
+        "statsPeriod": stats_period,
+    }
+    if project_slug:
+        params["project"] = project_slug
+    data, cursor = _client.get(_client.org_path("events/"), params)
+    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    if cursor:
+        result["next_cursor"] = cursor
+    return result
+
+
+@mcp.tool
+def sentry_discover_query(
+    fields: list[str],
+    query: str = "",
+    dataset: str | None = None,
+    sort: str | None = None,
+    stats_period: str = "24h",
+    project_slug: str | None = None,
+    limit: int = 20,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """Run a custom Sentry Discover query with proper array field support.
+
+    Use this for custom performance queries not covered by the preset tools.
+
+    Args:
+        fields: List of fields/aggregates to query
+            (e.g. ["transaction", "count()", "p95(transaction.duration)"]).
+        query: Sentry search query filter
+            (e.g. "event.type:transaction browser:Chrome").
+        dataset: Dataset to query -- omit for default, or use "spans", "transactions".
+        sort: Sort field (prefix with - for descending, e.g. "-count()").
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        project_slug: Filter to a specific project.
+        limit: Max results (default: 20, max: 100).
+        cursor: Pagination cursor from a previous response.
+
+    Returns:
+        Query results with data rows and metadata.
+    """
+    params: dict[str, Any] = {
+        "field": fields,
+        "statsPeriod": stats_period,
+        "per_page": min(limit, 100),
+    }
+    if query:
+        params["query"] = query
+    if dataset:
+        params["dataset"] = dataset
+    if sort:
+        params["sort"] = sort
+    if project_slug:
+        params["project"] = project_slug
+    if cursor:
+        params["cursor"] = cursor
+    data, next_cursor = _client.get(_client.org_path("events/"), params)
+    result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
+    if next_cursor:
+        result["next_cursor"] = next_cursor
+    return result
+
+
+@mcp.tool
+def sentry_events_timeseries(
+    fields: list[str],
+    y_axis: str = "count()",
+    interval: int | None = None,
+    stats_period: str = "24h",
+    query: str = "",
+    project_slug: str | None = None,
+    group_by: list[str] | None = None,
+) -> dict[str, Any]:
+    """Query Sentry events in timeseries format for trend visualization.
+
+    Args:
+        fields: List of fields to query.
+        y_axis: Aggregate field for the timeseries (default: count()).
+        interval: Bucket size in seconds (must be smaller than the time window).
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        query: Sentry search query filter.
+        project_slug: Filter to a specific project.
+        group_by: Fields to group the timeseries by.
+
+    Returns:
+        Timeseries data with timestamps and values.
+    """
+    params: dict[str, Any] = {
+        "field": fields,
+        "yAxis": y_axis,
+        "statsPeriod": stats_period,
+    }
+    if interval:
+        params["interval"] = interval
+    if query:
+        params["query"] = query
+    if project_slug:
+        params["project"] = project_slug
+    if group_by:
+        params["groupBy"] = group_by
+    data, _ = _client.get(_client.org_path("events-timeseries/"), params)
+    return data
+
+
+# ── Monitor tools ────────────────────────────────────────────────────
+
+
+@mcp.tool
+def sentry_list_monitors(
+    project_slug: str | None = None,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """List all cron monitors in the organization.
+
+    Args:
+        project_slug: Filter to a specific project. Omit for all projects.
+        cursor: Pagination cursor from a previous response.
+
+    Returns:
+        List of monitors with pagination cursor.
+    """
+    params: dict[str, Any] = {}
+    if project_slug:
+        params["project"] = project_slug
+    if cursor:
+        params["cursor"] = cursor
+    data, next_cursor = _client.get(_client.org_path("monitors/"), params or None)
+    result: dict[str, Any] = {"monitors": data}
+    if next_cursor:
+        result["next_cursor"] = next_cursor
+    return result
+
+
+@mcp.tool
+def sentry_get_monitor(
+    monitor_slug: str,
+    project_slug: str | None = None,
+) -> dict[str, Any]:
+    """Get details of a specific cron monitor.
+
+    Args:
+        monitor_slug: The monitor's slug identifier.
+        project_slug: Project slug (optional, for disambiguation).
+
+    Returns:
+        Monitor details dict.
+    """
+    params: dict[str, Any] = {}
+    if project_slug:
+        params["project"] = project_slug
+    return _client.get_simple(
+        _client.org_path(f"monitors/{monitor_slug}/"), params=params or None
+    )
+
+
+@mcp.tool
+def sentry_create_monitor(
+    project_slug: str,
+    name: str,
+    schedule: str,
+    schedule_type: str = "crontab",
+    checkin_margin: int | None = None,
+    max_runtime: int | None = None,
+    timezone: str = "UTC",
+) -> dict[str, Any]:
+    """Create a new cron monitor.
+
+    Args:
+        project_slug: Project to create the monitor in.
+        name: Display name for the monitor.
+        schedule: Cron schedule expression (e.g. "0 * * * *") or interval value.
+        schedule_type: Schedule type -- "crontab" or "interval" (default: crontab).
+        checkin_margin: Grace period in minutes before a missed check-in is flagged.
+        max_runtime: Max expected runtime in minutes before a timeout is flagged.
+        timezone: Timezone for the schedule (default: UTC).
+
+    Returns:
+        Created monitor details.
+    """
+    config: dict[str, Any] = {
+        "schedule": schedule,
+        "schedule_type": schedule_type,
+        "timezone": timezone,
+    }
+    if checkin_margin is not None:
+        config["checkin_margin"] = checkin_margin
+    if max_runtime is not None:
+        config["max_runtime"] = max_runtime
+    body: dict[str, Any] = {
+        "project": project_slug,
+        "name": name,
+        "type": "cron_job",
+        "config": config,
+    }
+    return _client.post(_client.org_path("monitors/"), body)
+
+
+@mcp.tool
+def sentry_update_monitor(
+    monitor_slug: str,
+    name: str | None = None,
+    schedule: str | None = None,
+    schedule_type: str | None = None,
+    checkin_margin: int | None = None,
+    max_runtime: int | None = None,
+    is_muted: bool | None = None,
+) -> dict[str, Any]:
+    """Update an existing cron monitor.
+
+    Args:
+        monitor_slug: The monitor's slug identifier.
+        name: New display name.
+        schedule: New cron schedule expression or interval value.
+        schedule_type: New schedule type -- "crontab" or "interval".
+        checkin_margin: New grace period in minutes.
+        max_runtime: New max runtime in minutes.
+        is_muted: Mute or unmute the monitor.
+
+    Returns:
+        Updated monitor details.
+    """
+    body: dict[str, Any] = {}
+    if name is not None:
+        body["name"] = name
+    if is_muted is not None:
+        body["isMuted"] = is_muted
+    config: dict[str, Any] = {}
+    if schedule is not None:
+        config["schedule"] = schedule
+    if schedule_type is not None:
+        config["schedule_type"] = schedule_type
+    if checkin_margin is not None:
+        config["checkin_margin"] = checkin_margin
+    if max_runtime is not None:
+        config["max_runtime"] = max_runtime
+    if config:
+        body["config"] = config
+    return _client.put(_client.org_path(f"monitors/{monitor_slug}/"), body)
+
+
+@mcp.tool
+def sentry_delete_monitor(monitor_slug: str) -> dict[str, str]:
+    """Delete a cron monitor.
+
+    Args:
+        monitor_slug: The monitor's slug identifier.
+
+    Returns:
+        Deletion confirmation.
+    """
+    return _client.delete(_client.org_path(f"monitors/{monitor_slug}/"))
+
+
+# ── Issue alert tools ────────────────────────────────────────────────
+
+
+@mcp.tool
+def sentry_list_issue_alerts(project_slug: str) -> Any:
+    """List all issue alert rules for a project.
+
+    Args:
+        project_slug: The project's slug identifier.
+
+    Returns:
+        List of issue alert rules.
+    """
+    return _client.get_simple(_client.project_path(project_slug, "rules/"))
+
+
+@mcp.tool
+def sentry_get_issue_alert(project_slug: str, rule_id: str) -> Any:
+    """Get details of a specific issue alert rule.
+
+    Args:
+        project_slug: The project's slug identifier.
+        rule_id: The alert rule ID.
+
+    Returns:
+        Issue alert rule details.
+    """
+    return _client.get_simple(
+        _client.project_path(project_slug, f"rules/{rule_id}/")
+    )
+
+
+@mcp.tool
+def sentry_create_issue_alert(
+    project_slug: str,
+    name: str,
+    frequency: int,
+    action_match: str,
+    conditions: list[dict[str, Any]],
+    actions: list[dict[str, Any]],
+    filter_match: str = "all",
+    filters: list[dict[str, Any]] | None = None,
+    environment: str | None = None,
+) -> dict[str, Any]:
+    """Create a new issue alert rule for a project.
+
+    Args:
+        project_slug: The project's slug identifier.
+        name: Display name for the alert rule.
+        frequency: How often the rule fires in minutes (e.g. 30 = at most once per 30 min).
+        action_match: When to trigger -- "all", "any", or "none" (for conditions).
+        conditions: List of condition dicts (e.g. first seen, regression, etc.).
+        actions: List of action dicts (e.g. send email, Slack notification).
+        filter_match: When to apply filters -- "all", "any", or "none" (default: all).
+        filters: Optional list of filter dicts (e.g. issue age, event attribute).
+        environment: Optional environment name to scope the rule to.
+
+    Returns:
+        Created issue alert rule details.
+    """
+    body: dict[str, Any] = {
+        "name": name,
+        "frequency": frequency,
+        "actionMatch": action_match,
+        "conditions": conditions,
+        "actions": actions,
+        "filterMatch": filter_match,
+    }
+    if filters is not None:
+        body["filters"] = filters
+    if environment is not None:
+        body["environment"] = environment
+    return _client.post(_client.project_path(project_slug, "rules/"), body)
+
+
+@mcp.tool
+def sentry_update_issue_alert(
+    project_slug: str,
+    rule_id: str,
+    name: str | None = None,
+    frequency: int | None = None,
+    action_match: str | None = None,
+    conditions: list[dict[str, Any]] | None = None,
+    actions: list[dict[str, Any]] | None = None,
+    filter_match: str | None = None,
+    filters: list[dict[str, Any]] | None = None,
+    environment: str | None = None,
+) -> dict[str, Any]:
+    """Update an existing issue alert rule.
+
+    Args:
+        project_slug: The project's slug identifier.
+        rule_id: The alert rule ID.
+        name: New display name.
+        frequency: New frequency in minutes.
+        action_match: New condition match -- "all", "any", or "none".
+        conditions: New list of condition dicts.
+        actions: New list of action dicts.
+        filter_match: New filter match -- "all", "any", or "none".
+        filters: New list of filter dicts.
+        environment: New environment name.
+
+    Returns:
+        Updated issue alert rule details.
+    """
+    body: dict[str, Any] = {}
+    if name is not None:
+        body["name"] = name
+    if frequency is not None:
+        body["frequency"] = frequency
+    if action_match is not None:
+        body["actionMatch"] = action_match
+    if conditions is not None:
+        body["conditions"] = conditions
+    if actions is not None:
+        body["actions"] = actions
+    if filter_match is not None:
+        body["filterMatch"] = filter_match
+    if filters is not None:
+        body["filters"] = filters
+    if environment is not None:
+        body["environment"] = environment
+    return _client.put(
+        _client.project_path(project_slug, f"rules/{rule_id}/"), body
+    )
+
+
+@mcp.tool
+def sentry_delete_issue_alert(project_slug: str, rule_id: str) -> dict[str, str]:
+    """Delete an issue alert rule.
+
+    Args:
+        project_slug: The project's slug identifier.
+        rule_id: The alert rule ID.
+
+    Returns:
+        Deletion confirmation.
+    """
+    return _client.delete(
+        _client.project_path(project_slug, f"rules/{rule_id}/")
+    )
+
+
+# ── Metric alert tools ──────────────────────────────────────────────
+
+
+@mcp.tool
+def sentry_list_metric_alerts() -> Any:
+    """List all metric alert rules in the organization.
+
+    Returns:
+        List of metric alert rules.
+    """
+    return _client.get_simple(_client.org_path("alert-rules/"))
+
+
+@mcp.tool
+def sentry_get_metric_alert(rule_id: str) -> Any:
+    """Get details of a specific metric alert rule.
+
+    Args:
+        rule_id: The metric alert rule ID.
+
+    Returns:
+        Metric alert rule details.
+    """
+    return _client.get_simple(_client.org_path(f"alert-rules/{rule_id}/"))
+
+
+@mcp.tool
+def sentry_create_metric_alert(
+    name: str,
+    aggregate: str,
+    query: str,
+    time_window: int,
+    triggers: list[dict[str, Any]],
+    projects: list[str],
+    dataset: str = "events",
+    threshold_type: int = 0,
+    resolve_threshold: float | None = None,
+    environment: str | None = None,
+    owner: str | None = None,
+) -> dict[str, Any]:
+    """Create a new metric alert rule.
+
+    Args:
+        name: Display name for the alert rule.
+        aggregate: Aggregation function (e.g. "count()", "avg(transaction.duration)").
+        query: Sentry search query filter for the metric.
+        time_window: Time window in minutes to evaluate the metric over.
+        triggers: List of trigger dicts with alertThreshold and actions.
+        projects: List of project slugs to apply the rule to.
+        dataset: Dataset -- "events", "transactions", or "sessions" (default: events).
+        threshold_type: 0 = above, 1 = below (default: 0).
+        resolve_threshold: Value at which the alert auto-resolves.
+        environment: Environment name to scope the rule to.
+        owner: Owner identifier (e.g. "team:my-team" or "user:123").
+
+    Returns:
+        Created metric alert rule details.
+    """
+    body: dict[str, Any] = {
+        "name": name,
+        "aggregate": aggregate,
+        "query": query,
+        "timeWindow": time_window,
+        "triggers": triggers,
+        "projects": projects,
+        "dataset": dataset,
+        "thresholdType": threshold_type,
+    }
+    if resolve_threshold is not None:
+        body["resolveThreshold"] = resolve_threshold
+    if environment is not None:
+        body["environment"] = environment
+    if owner is not None:
+        body["owner"] = owner
+    return _client.post(_client.org_path("alert-rules/"), body)
+
+
+@mcp.tool
+def sentry_update_metric_alert(
+    rule_id: str,
+    name: str | None = None,
+    aggregate: str | None = None,
+    query: str | None = None,
+    time_window: int | None = None,
+    triggers: list[dict[str, Any]] | None = None,
+    threshold_type: int | None = None,
+    resolve_threshold: float | None = None,
+    environment: str | None = None,
+    owner: str | None = None,
+) -> dict[str, Any]:
+    """Update an existing metric alert rule.
+
+    Args:
+        rule_id: The metric alert rule ID.
+        name: New display name.
+        aggregate: New aggregation function.
+        query: New search query filter.
+        time_window: New time window in minutes.
+        triggers: New list of trigger dicts.
+        threshold_type: New threshold type (0 = above, 1 = below).
+        resolve_threshold: New auto-resolve threshold value.
+        environment: New environment name.
+        owner: New owner identifier.
+
+    Returns:
+        Updated metric alert rule details.
+    """
+    body: dict[str, Any] = {}
+    if name is not None:
+        body["name"] = name
+    if aggregate is not None:
+        body["aggregate"] = aggregate
+    if query is not None:
+        body["query"] = query
+    if time_window is not None:
+        body["timeWindow"] = time_window
+    if triggers is not None:
+        body["triggers"] = triggers
+    if threshold_type is not None:
+        body["thresholdType"] = threshold_type
+    if resolve_threshold is not None:
+        body["resolveThreshold"] = resolve_threshold
+    if environment is not None:
+        body["environment"] = environment
+    if owner is not None:
+        body["owner"] = owner
+    return _client.put(_client.org_path(f"alert-rules/{rule_id}/"), body)
+
+
+@mcp.tool
+def sentry_delete_metric_alert(rule_id: str) -> dict[str, str]:
+    """Delete a metric alert rule.
+
+    Args:
+        rule_id: The metric alert rule ID.
+
+    Returns:
+        Deletion confirmation.
+    """
+    return _client.delete(_client.org_path(f"alert-rules/{rule_id}/"))
 
 
 # ── Main entry point ─────────────────────────────────────────────────

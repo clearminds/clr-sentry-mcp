@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import ValidationError
-
 from fastmcp.exceptions import ToolError
 from fastmcp.server.middleware import Middleware
+from pydantic import ValidationError
 
 
 class ToolValidationMiddleware(Middleware):
