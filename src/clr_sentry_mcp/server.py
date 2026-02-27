@@ -85,7 +85,23 @@ def sentry_get_issue(
     if include_latest_event:
         params["collapse"] = "release"
 
-    return _client.get_simple(f"/issues/{numeric_id}/", params=params or None)
+    data = _client.get_simple(f"/issues/{numeric_id}/", params=params or None)
+
+    # Strip heavy fields that bloat the response (activity alone can be 60K+ chars)
+    drop_keys = {"activity", "seenBy", "participants", "pluginActions", "pluginIssues", "pluginContexts"}
+    for key in drop_keys:
+        data.pop(key, None)
+
+    # Trim release objects to essentials
+    for rel_key in ("firstRelease", "lastRelease"):
+        rel = data.get(rel_key)
+        if isinstance(rel, dict):
+            data[rel_key] = {
+                "version": rel.get("shortVersion") or rel.get("version"),
+                "dateCreated": rel.get("dateCreated"),
+            }
+
+    return data
 
 
 # ── Insights / Discover tools ────────────────────────────────────────
@@ -94,7 +110,7 @@ def sentry_get_issue(
 @mcp.tool
 def sentry_top_transactions(
     project_slug: str | None = None,
-    stats_period: str = "24h",
+    stats_period: str = "7d",
     limit: int = 10,
     sort_by: str = "-p95(transaction.duration)",
 ) -> dict[str, Any]:
@@ -102,7 +118,7 @@ def sentry_top_transactions(
 
     Args:
         project_slug: Filter to a specific project. Omit for all projects.
-        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 7d).
         limit: Max results (default: 10, max: 100).
         sort_by: Sort field (default: -p95(transaction.duration)).
 
@@ -134,7 +150,7 @@ def sentry_top_transactions(
 @mcp.tool
 def sentry_slow_db_queries(
     project_slug: str | None = None,
-    stats_period: str = "24h",
+    stats_period: str = "7d",
     limit: int = 10,
     sort_by: str = "-p95(span.duration)",
 ) -> dict[str, Any]:
@@ -142,7 +158,7 @@ def sentry_slow_db_queries(
 
     Args:
         project_slug: Filter to a specific project. Omit for all projects.
-        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 7d).
         limit: Max results (default: 10, max: 100).
         sort_by: Sort field (default: -p95(span.duration)).
 
@@ -175,7 +191,7 @@ def sentry_slow_db_queries(
 @mcp.tool
 def sentry_slow_http_requests(
     project_slug: str | None = None,
-    stats_period: str = "24h",
+    stats_period: str = "7d",
     limit: int = 10,
     sort_by: str = "-p95(span.duration)",
 ) -> dict[str, Any]:
@@ -183,7 +199,7 @@ def sentry_slow_http_requests(
 
     Args:
         project_slug: Filter to a specific project. Omit for all projects.
-        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 7d).
         limit: Max results (default: 10, max: 100).
         sort_by: Sort field (default: -p95(span.duration)).
 
@@ -216,7 +232,7 @@ def sentry_slow_http_requests(
 @mcp.tool
 def sentry_queue_performance(
     project_slug: str | None = None,
-    stats_period: str = "24h",
+    stats_period: str = "7d",
     limit: int = 10,
     sort_by: str = "-p95(span.duration)",
 ) -> dict[str, Any]:
@@ -224,7 +240,7 @@ def sentry_queue_performance(
 
     Args:
         project_slug: Filter to a specific project. Omit for all projects.
-        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 7d).
         limit: Max results (default: 10, max: 100).
         sort_by: Sort field (default: -p95(span.duration)).
 
@@ -260,7 +276,7 @@ def sentry_discover_query(
     query: str = "",
     dataset: str | None = None,
     sort: str | None = None,
-    stats_period: str = "24h",
+    stats_period: str = "7d",
     project_slug: str | None = None,
     limit: int = 20,
     cursor: str | None = None,
@@ -276,7 +292,7 @@ def sentry_discover_query(
             (e.g. "event.type:transaction browser:Chrome").
         dataset: Dataset to query -- omit for default, or use "spans", "transactions".
         sort: Sort field (prefix with - for descending, e.g. "-count()").
-        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 7d).
         project_slug: Filter to a specific project.
         limit: Max results (default: 20, max: 100).
         cursor: Pagination cursor from a previous response.
@@ -311,7 +327,7 @@ def sentry_events_timeseries(
     fields: list[str],
     y_axis: str = "count()",
     interval: int | None = None,
-    stats_period: str = "24h",
+    stats_period: str = "7d",
     query: str = "",
     project_slug: str | None = None,
     group_by: list[str] | None = None,
@@ -322,7 +338,7 @@ def sentry_events_timeseries(
         fields: List of fields to query.
         y_axis: Aggregate field for the timeseries (default: count()).
         interval: Bucket size in seconds (must be smaller than the time window).
-        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 24h).
+        stats_period: Time range -- 1h, 24h, 7d, 14d, 30d (default: 7d).
         query: Sentry search query filter.
         project_slug: Filter to a specific project.
         group_by: Fields to group the timeseries by.
