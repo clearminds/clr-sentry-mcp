@@ -123,7 +123,7 @@ def sentry_top_transactions(
         "statsPeriod": stats_period,
     }
     if project_slug:
-        params["project"] = project_slug
+        params["project"] = _client.resolve_project_id(project_slug)
     data, cursor = _client.get(_client.org_path("events/"), params)
     result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
     if cursor:
@@ -164,7 +164,7 @@ def sentry_slow_db_queries(
         "statsPeriod": stats_period,
     }
     if project_slug:
-        params["project"] = project_slug
+        params["project"] = _client.resolve_project_id(project_slug)
     data, cursor = _client.get(_client.org_path("events/"), params)
     result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
     if cursor:
@@ -205,7 +205,7 @@ def sentry_slow_http_requests(
         "statsPeriod": stats_period,
     }
     if project_slug:
-        params["project"] = project_slug
+        params["project"] = _client.resolve_project_id(project_slug)
     data, cursor = _client.get(_client.org_path("events/"), params)
     result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
     if cursor:
@@ -246,7 +246,7 @@ def sentry_queue_performance(
         "statsPeriod": stats_period,
     }
     if project_slug:
-        params["project"] = project_slug
+        params["project"] = _client.resolve_project_id(project_slug)
     data, cursor = _client.get(_client.org_path("events/"), params)
     result: dict[str, Any] = {"data": data.get("data", data), "meta": data.get("meta")}
     if cursor:
@@ -296,7 +296,7 @@ def sentry_discover_query(
     if sort:
         params["sort"] = sort
     if project_slug:
-        params["project"] = project_slug
+        params["project"] = _client.resolve_project_id(project_slug)
     if cursor:
         params["cursor"] = cursor
     data, next_cursor = _client.get(_client.org_path("events/"), params)
@@ -340,7 +340,7 @@ def sentry_events_timeseries(
     if query:
         params["query"] = query
     if project_slug:
-        params["project"] = project_slug
+        params["project"] = _client.resolve_project_id(project_slug)
     if group_by:
         params["groupBy"] = group_by
     data, _ = _client.get(_client.org_path("events-timeseries/"), params)
@@ -366,7 +366,7 @@ def sentry_list_monitors(
     """
     params: dict[str, Any] = {}
     if project_slug:
-        params["project"] = project_slug
+        params["project"] = _client.resolve_project_id(project_slug)
     if cursor:
         params["cursor"] = cursor
     data, next_cursor = _client.get(_client.org_path("monitors/"), params or None)
@@ -392,7 +392,7 @@ def sentry_get_monitor(
     """
     params: dict[str, Any] = {}
     if project_slug:
-        params["project"] = project_slug
+        params["project"] = _client.resolve_project_id(project_slug)
     return _client.get_simple(
         _client.org_path(f"monitors/{monitor_slug}/"), params=params or None
     )

@@ -17,6 +17,7 @@ class SentryClient:
     - Array query params (field[] sent as repeated params)
     - Link-header cursor pagination
     - Rate limit awareness
+    - Project slug → numeric ID resolution (cached)
 
     Attributes:
         org_slug: The Sentry organization slug used for path construction.
@@ -32,6 +33,7 @@ class SentryClient:
             org_slug: Organization slug for API paths.
         """
         self.org_slug = org_slug
+        self._project_id_cache: dict[str, str] = {}
         # Strip trailing slash, ensure /api/0 base
         base = base_url.rstrip("/")
         if not base.endswith("/api/0"):
@@ -48,6 +50,35 @@ class SentryClient:
     def close(self) -> None:
         """Close the underlying HTTP client."""
         self._http.close()
+
+    def resolve_project_id(self, project_slug: str) -> str:
+        """Resolve a project slug to its numeric ID (cached).
+
+        The Sentry Events/Discover API requires numeric project IDs, not slugs.
+        This method fetches the project once and caches the mapping.
+
+        Args:
+            project_slug: The project's slug identifier.
+
+        Returns:
+            Numeric project ID as a string.
+
+        Raises:
+            ValueError: If the project slug cannot be resolved.
+        """
+        if project_slug in self._project_id_cache:
+            return self._project_id_cache[project_slug]
+
+        resp = self._http.get(
+            f"/projects/{self.org_slug}/{project_slug}/",
+            params=[],
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        project_id = str(data["id"])
+        self._project_id_cache[project_slug] = project_id
+        logger.debug("Resolved project '%s' → ID %s", project_slug, project_id)
+        return project_id
 
     def _build_params(self, params: dict[str, Any] | None) -> list[tuple[str, str]]:
         """Build query params, expanding lists into repeated keys.
