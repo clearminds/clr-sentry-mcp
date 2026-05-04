@@ -20,21 +20,14 @@ mcp.add_middleware(ToolValidationMiddleware())
 # Imported here (not at the top) on purpose: annotations.py needs ``mcp`` from
 # this module, so importing it before the ``mcp = FastMCP(...)`` line above
 # would be a circular import. Do not move.
-from clr_sentry_mcp.annotations import read_tool, write_tool, destructive_tool  # noqa: E402
+from clr_sentry_mcp.annotations import (  # noqa: E402
+    destructive_tool,
+    read_tool,
+    remove_non_read_tools,
+    write_tool,
+)
 
 _client: SentryClient | None = None
-
-WRITE_TOOLS: list[str] = [
-    "sentry_create_monitor",
-    "sentry_update_monitor",
-    "sentry_delete_monitor",
-    "sentry_create_issue_alert",
-    "sentry_update_issue_alert",
-    "sentry_delete_issue_alert",
-    "sentry_create_metric_alert",
-    "sentry_update_metric_alert",
-    "sentry_delete_metric_alert",
-]
 
 
 # ── Issue tools ─────────────────────────────────────────────────────
@@ -890,10 +883,9 @@ def main() -> None:
     _client = SentryClient(url, auth_token, org_slug)
 
     read_only = args.read_only if args.read_only is not None else settings.sentry_read_only
-    if read_only and WRITE_TOOLS:
-        for name in WRITE_TOOLS:
-            mcp.remove_tool(name)
-        logger.info("Read-only mode: %d write tools removed", len(WRITE_TOOLS))
+    if read_only:
+        removed = remove_non_read_tools(mcp)
+        logger.info("Read-only mode: %d non-read tools removed", removed)
 
     try:
         if transport == "stdio":
