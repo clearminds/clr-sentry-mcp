@@ -811,29 +811,6 @@ def sentry_delete_metric_alert(rule_id: str) -> dict[str, str]:
     return _client.delete(_client.org_path(f"alert-rules/{rule_id}/"))
 
 
-# ── Composite init ───────────────────────────────────────────────────
-
-
-def init_composite() -> FastMCP:
-    """Initialize for composite mounting. Returns the FastMCP instance."""
-    global _client
-
-    settings = Settings()
-    creds = settings.load_credentials()
-
-    url = creds.get("url", "")
-    auth_token = creds.get("auth_token", "")
-    org_slug = creds.get("org_slug", "")
-
-    _client = SentryClient(url, auth_token, org_slug)
-
-    if settings.sentry_read_only and WRITE_TOOLS:
-        for name in WRITE_TOOLS:
-            mcp.remove_tool(name)
-
-    return mcp
-
-
 # ── Main entry point ─────────────────────────────────────────────────
 
 
