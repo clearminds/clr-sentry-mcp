@@ -16,25 +16,24 @@ from clr_sentry_mcp.sentry_client import SentryClient
 
 mcp = FastMCP("Sentry Extra")
 mcp.add_middleware(ToolValidationMiddleware())
-_client: SentryClient | None = None
 
-WRITE_TOOLS: list[str] = [
-    "sentry_create_monitor",
-    "sentry_update_monitor",
-    "sentry_delete_monitor",
-    "sentry_create_issue_alert",
-    "sentry_update_issue_alert",
-    "sentry_delete_issue_alert",
-    "sentry_create_metric_alert",
-    "sentry_update_metric_alert",
-    "sentry_delete_metric_alert",
-]
+# Imported here (not at the top) on purpose: annotations.py needs ``mcp`` from
+# this module, so importing it before the ``mcp = FastMCP(...)`` line above
+# would be a circular import. Do not move.
+from clr_sentry_mcp.annotations import (  # noqa: E402
+    destructive_tool,
+    read_tool,
+    remove_non_read_tools,
+    write_tool,
+)
+
+_client: SentryClient | None = None
 
 
 # ── Issue tools ─────────────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def sentry_get_issue(
     identifier: str,
     include_latest_event: bool = False,
@@ -122,7 +121,7 @@ def _truncate_rows(data: dict[str, Any]) -> dict[str, Any]:
 # ── Insights / Discover tools ────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def sentry_top_transactions(
     project_slug: str | None = None,
     stats_period: str = "7d",
@@ -162,7 +161,7 @@ def sentry_top_transactions(
     return result
 
 
-@mcp.tool
+@read_tool
 def sentry_slow_db_queries(
     project_slug: str | None = None,
     stats_period: str = "7d",
@@ -203,7 +202,7 @@ def sentry_slow_db_queries(
     return result
 
 
-@mcp.tool
+@read_tool
 def sentry_slow_http_requests(
     project_slug: str | None = None,
     stats_period: str = "7d",
@@ -244,7 +243,7 @@ def sentry_slow_http_requests(
     return result
 
 
-@mcp.tool
+@read_tool
 def sentry_queue_performance(
     project_slug: str | None = None,
     stats_period: str = "7d",
@@ -285,7 +284,7 @@ def sentry_queue_performance(
     return result
 
 
-@mcp.tool
+@read_tool
 def sentry_discover_query(
     fields: list[str],
     query: str = "",
@@ -337,7 +336,7 @@ def sentry_discover_query(
     return result
 
 
-@mcp.tool
+@read_tool
 def sentry_events_timeseries(
     fields: list[str],
     y_axis: str = "count()",
@@ -381,7 +380,7 @@ def sentry_events_timeseries(
 # ── Monitor tools ────────────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def sentry_list_monitors(
     project_slug: str | None = None,
     cursor: str | None = None,
@@ -407,7 +406,7 @@ def sentry_list_monitors(
     return result
 
 
-@mcp.tool
+@read_tool
 def sentry_get_monitor(
     monitor_slug: str,
     project_slug: str | None = None,
@@ -429,7 +428,7 @@ def sentry_get_monitor(
     )
 
 
-@mcp.tool
+@write_tool
 def sentry_create_monitor(
     project_slug: str,
     name: str,
@@ -471,7 +470,7 @@ def sentry_create_monitor(
     return _client.post(_client.org_path("monitors/"), body)
 
 
-@mcp.tool
+@write_tool
 def sentry_update_monitor(
     monitor_slug: str,
     name: str | None = None,
@@ -514,7 +513,7 @@ def sentry_update_monitor(
     return _client.put(_client.org_path(f"monitors/{monitor_slug}/"), body)
 
 
-@mcp.tool
+@destructive_tool
 def sentry_delete_monitor(monitor_slug: str) -> dict[str, str]:
     """Delete a cron monitor.
 
@@ -530,7 +529,7 @@ def sentry_delete_monitor(monitor_slug: str) -> dict[str, str]:
 # ── Issue alert tools ────────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def sentry_list_issue_alerts(project_slug: str) -> Any:
     """List all issue alert rules for a project.
 
@@ -543,7 +542,7 @@ def sentry_list_issue_alerts(project_slug: str) -> Any:
     return _client.get_simple(_client.project_path(project_slug, "rules/"))
 
 
-@mcp.tool
+@read_tool
 def sentry_get_issue_alert(project_slug: str, rule_id: str) -> Any:
     """Get details of a specific issue alert rule.
 
@@ -559,7 +558,7 @@ def sentry_get_issue_alert(project_slug: str, rule_id: str) -> Any:
     )
 
 
-@mcp.tool
+@write_tool
 def sentry_create_issue_alert(
     project_slug: str,
     name: str,
@@ -602,7 +601,7 @@ def sentry_create_issue_alert(
     return _client.post(_client.project_path(project_slug, "rules/"), body)
 
 
-@mcp.tool
+@write_tool
 def sentry_update_issue_alert(
     project_slug: str,
     rule_id: str,
@@ -654,7 +653,7 @@ def sentry_update_issue_alert(
     )
 
 
-@mcp.tool
+@destructive_tool
 def sentry_delete_issue_alert(project_slug: str, rule_id: str) -> dict[str, str]:
     """Delete an issue alert rule.
 
@@ -673,7 +672,7 @@ def sentry_delete_issue_alert(project_slug: str, rule_id: str) -> dict[str, str]
 # ── Metric alert tools ──────────────────────────────────────────────
 
 
-@mcp.tool
+@read_tool
 def sentry_list_metric_alerts() -> Any:
     """List all metric alert rules in the organization.
 
@@ -683,7 +682,7 @@ def sentry_list_metric_alerts() -> Any:
     return _client.get_simple(_client.org_path("alert-rules/"))
 
 
-@mcp.tool
+@read_tool
 def sentry_get_metric_alert(rule_id: str) -> Any:
     """Get details of a specific metric alert rule.
 
@@ -696,7 +695,7 @@ def sentry_get_metric_alert(rule_id: str) -> Any:
     return _client.get_simple(_client.org_path(f"alert-rules/{rule_id}/"))
 
 
-@mcp.tool
+@write_tool
 def sentry_create_metric_alert(
     name: str,
     aggregate: str,
@@ -747,7 +746,7 @@ def sentry_create_metric_alert(
     return _client.post(_client.org_path("alert-rules/"), body)
 
 
-@mcp.tool
+@write_tool
 def sentry_update_metric_alert(
     rule_id: str,
     name: str | None = None,
@@ -799,7 +798,7 @@ def sentry_update_metric_alert(
     return _client.put(_client.org_path(f"alert-rules/{rule_id}/"), body)
 
 
-@mcp.tool
+@destructive_tool
 def sentry_delete_metric_alert(rule_id: str) -> dict[str, str]:
     """Delete a metric alert rule.
 
@@ -907,10 +906,9 @@ def main() -> None:
     _client = SentryClient(url, auth_token, org_slug)
 
     read_only = args.read_only if args.read_only is not None else settings.sentry_read_only
-    if read_only and WRITE_TOOLS:
-        for name in WRITE_TOOLS:
-            mcp.remove_tool(name)
-        logger.info("Read-only mode: %d write tools removed", len(WRITE_TOOLS))
+    if read_only:
+        removed = remove_non_read_tools(mcp)
+        logger.info("Read-only mode: %d non-read tools removed", removed)
 
     try:
         if transport == "stdio":
