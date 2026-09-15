@@ -59,48 +59,48 @@ Config file values override environment variables.
 
 | Tool | Description |
 |------|-------------|
-| `sentry_get_issue` | Get issue by numeric ID, short ID, or URL (auto-detects) |
+| `get_issue` | Get issue by numeric ID, short ID, or URL (auto-detects) |
 
 ### Performance Insights (6)
 
 | Tool | Description |
 |------|-------------|
-| `sentry_top_transactions` | Slowest endpoints by p95 response time |
-| `sentry_slow_db_queries` | Slowest database queries |
-| `sentry_slow_http_requests` | Slowest outbound HTTP requests |
-| `sentry_queue_performance` | Queue/task worker performance |
-| `sentry_discover_query` | Custom Discover query (any fields/dataset) |
-| `sentry_events_timeseries` | Events over time for trend visualization |
+| `top_transactions` | Slowest endpoints by p95 response time |
+| `slow_db_queries` | Slowest database queries |
+| `slow_http_requests` | Slowest outbound HTTP requests |
+| `queue_performance` | Queue/task worker performance |
+| `discover_query` | Custom Discover query (any fields/dataset) |
+| `events_timeseries` | Events over time for trend visualization |
 
 ### Cron Monitors (5)
 
 | Tool | Description |
 |------|-------------|
-| `sentry_list_monitors` | List all cron monitors |
-| `sentry_get_monitor` | Get monitor details |
-| `sentry_create_monitor` | Create a cron monitor |
-| `sentry_update_monitor` | Update a cron monitor |
-| `sentry_delete_monitor` | Delete a cron monitor |
+| `list_monitors` | List all cron monitors |
+| `get_monitor` | Get monitor details |
+| `create_monitor` | Create a cron monitor |
+| `update_monitor` | Update a cron monitor |
+| `delete_monitor` | Delete a cron monitor |
 
 ### Issue Alerts (5)
 
 | Tool | Description |
 |------|-------------|
-| `sentry_list_issue_alerts` | List issue alerts for a project |
-| `sentry_get_issue_alert` | Get issue alert details |
-| `sentry_create_issue_alert` | Create an issue alert rule |
-| `sentry_update_issue_alert` | Update an issue alert rule |
-| `sentry_delete_issue_alert` | Delete an issue alert rule |
+| `list_issue_alerts` | List issue alerts for a project |
+| `get_issue_alert` | Get issue alert details |
+| `create_issue_alert` | Create an issue alert rule |
+| `update_issue_alert` | Update an issue alert rule |
+| `delete_issue_alert` | Delete an issue alert rule |
 
 ### Metric Alerts (5)
 
 | Tool | Description |
 |------|-------------|
-| `sentry_list_metric_alerts` | List all metric alert rules |
-| `sentry_get_metric_alert` | Get metric alert details |
-| `sentry_create_metric_alert` | Create a metric alert rule |
-| `sentry_update_metric_alert` | Update a metric alert rule |
-| `sentry_delete_metric_alert` | Delete a metric alert rule |
+| `list_metric_alerts` | List all metric alert rules |
+| `get_metric_alert` | Get metric alert details |
+| `create_metric_alert` | Create a metric alert rule |
+| `update_metric_alert` | Update a metric alert rule |
+| `delete_metric_alert` | Delete a metric alert rule |
 
 ## License
 

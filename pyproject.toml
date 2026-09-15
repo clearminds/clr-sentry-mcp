@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clr-sentry-mcp"
-version = "1.0.0"
+version = "2.0.0"
 description = "MCP server for Sentry performance insights, monitors, and alerts"
 requires-python = ">=3.11"
 license = "MIT"

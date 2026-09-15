@@ -34,7 +34,7 @@ _client: SentryClient | None = None
 
 
 @read_tool
-def sentry_get_issue(
+def get_issue(
     identifier: str,
     include_latest_event: bool = False,
     grep_pattern: str | None = None,
@@ -122,7 +122,7 @@ def _truncate_rows(data: dict[str, Any]) -> dict[str, Any]:
 
 
 @read_tool
-def sentry_top_transactions(
+def top_transactions(
     project_slug: str | None = None,
     stats_period: str = "7d",
     limit: int = 10,
@@ -162,7 +162,7 @@ def sentry_top_transactions(
 
 
 @read_tool
-def sentry_slow_db_queries(
+def slow_db_queries(
     project_slug: str | None = None,
     stats_period: str = "7d",
     limit: int = 10,
@@ -203,7 +203,7 @@ def sentry_slow_db_queries(
 
 
 @read_tool
-def sentry_slow_http_requests(
+def slow_http_requests(
     project_slug: str | None = None,
     stats_period: str = "7d",
     limit: int = 10,
@@ -244,7 +244,7 @@ def sentry_slow_http_requests(
 
 
 @read_tool
-def sentry_queue_performance(
+def queue_performance(
     project_slug: str | None = None,
     stats_period: str = "7d",
     limit: int = 10,
@@ -285,7 +285,7 @@ def sentry_queue_performance(
 
 
 @read_tool
-def sentry_discover_query(
+def discover_query(
     fields: list[str],
     query: str = "",
     dataset: str | None = None,
@@ -337,7 +337,7 @@ def sentry_discover_query(
 
 
 @read_tool
-def sentry_events_timeseries(
+def events_timeseries(
     fields: list[str],
     y_axis: str = "count()",
     interval: int | None = None,
@@ -381,7 +381,7 @@ def sentry_events_timeseries(
 
 
 @read_tool
-def sentry_list_monitors(
+def list_monitors(
     project_slug: str | None = None,
     cursor: str | None = None,
 ) -> dict[str, Any]:
@@ -407,7 +407,7 @@ def sentry_list_monitors(
 
 
 @read_tool
-def sentry_get_monitor(
+def get_monitor(
     monitor_slug: str,
     project_slug: str | None = None,
 ) -> dict[str, Any]:
@@ -429,7 +429,7 @@ def sentry_get_monitor(
 
 
 @write_tool
-def sentry_create_monitor(
+def create_monitor(
     project_slug: str,
     name: str,
     schedule: str,
@@ -471,7 +471,7 @@ def sentry_create_monitor(
 
 
 @write_tool
-def sentry_update_monitor(
+def update_monitor(
     monitor_slug: str,
     name: str | None = None,
     schedule: str | None = None,
@@ -514,7 +514,7 @@ def sentry_update_monitor(
 
 
 @destructive_tool
-def sentry_delete_monitor(monitor_slug: str) -> dict[str, str]:
+def delete_monitor(monitor_slug: str) -> dict[str, str]:
     """Delete a cron monitor.
 
     Args:
@@ -530,7 +530,7 @@ def sentry_delete_monitor(monitor_slug: str) -> dict[str, str]:
 
 
 @read_tool
-def sentry_list_issue_alerts(project_slug: str) -> Any:
+def list_issue_alerts(project_slug: str) -> Any:
     """List all issue alert rules for a project.
 
     Args:
@@ -543,7 +543,7 @@ def sentry_list_issue_alerts(project_slug: str) -> Any:
 
 
 @read_tool
-def sentry_get_issue_alert(project_slug: str, rule_id: str) -> Any:
+def get_issue_alert(project_slug: str, rule_id: str) -> Any:
     """Get details of a specific issue alert rule.
 
     Args:
@@ -559,7 +559,7 @@ def sentry_get_issue_alert(project_slug: str, rule_id: str) -> Any:
 
 
 @write_tool
-def sentry_create_issue_alert(
+def create_issue_alert(
     project_slug: str,
     name: str,
     frequency: int,
@@ -602,7 +602,7 @@ def sentry_create_issue_alert(
 
 
 @write_tool
-def sentry_update_issue_alert(
+def update_issue_alert(
     project_slug: str,
     rule_id: str,
     name: str | None = None,
@@ -654,7 +654,7 @@ def sentry_update_issue_alert(
 
 
 @destructive_tool
-def sentry_delete_issue_alert(project_slug: str, rule_id: str) -> dict[str, str]:
+def delete_issue_alert(project_slug: str, rule_id: str) -> dict[str, str]:
     """Delete an issue alert rule.
 
     Args:
@@ -673,7 +673,7 @@ def sentry_delete_issue_alert(project_slug: str, rule_id: str) -> dict[str, str]
 
 
 @read_tool
-def sentry_list_metric_alerts() -> Any:
+def list_metric_alerts() -> Any:
     """List all metric alert rules in the organization.
 
     Returns:
@@ -683,7 +683,7 @@ def sentry_list_metric_alerts() -> Any:
 
 
 @read_tool
-def sentry_get_metric_alert(rule_id: str) -> Any:
+def get_metric_alert(rule_id: str) -> Any:
     """Get details of a specific metric alert rule.
 
     Args:
@@ -696,7 +696,7 @@ def sentry_get_metric_alert(rule_id: str) -> Any:
 
 
 @write_tool
-def sentry_create_metric_alert(
+def create_metric_alert(
     name: str,
     aggregate: str,
     query: str,
@@ -747,7 +747,7 @@ def sentry_create_metric_alert(
 
 
 @write_tool
-def sentry_update_metric_alert(
+def update_metric_alert(
     rule_id: str,
     name: str | None = None,
     aggregate: str | None = None,
@@ -799,7 +799,7 @@ def sentry_update_metric_alert(
 
 
 @destructive_tool
-def sentry_delete_metric_alert(rule_id: str) -> dict[str, str]:
+def delete_metric_alert(rule_id: str) -> dict[str, str]:
     """Delete a metric alert rule.
 
     Args:
