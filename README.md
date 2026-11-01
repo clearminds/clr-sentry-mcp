@@ -53,13 +53,16 @@ Alternatively, create `~/.config/sentry/credentials.json`:
 
 Config file values override environment variables.
 
-## Tools (22)
+## Tools (25)
 
-### Issue Lookup (1)
+### Issues (4)
 
 | Tool | Description |
 |------|-------------|
 | `get_issue` | Get issue by numeric ID, short ID, or URL (auto-detects) |
+| `list_issues` | List/search issues, optionally per project (paginated) |
+| `update_issue` | Resolve, ignore, reopen or assign an issue |
+| `add_issue_comment` | Comment on an issue |
 
 ### Performance Insights (6)
 

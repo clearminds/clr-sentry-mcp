@@ -8,6 +8,7 @@ import sys
 import urllib.parse
 from typing import Any
 
+import httpx
 from fastmcp import FastMCP
 
 from clr_sentry_mcp.config import Settings
@@ -33,6 +34,144 @@ _client: SentryClient | None = None
 # ── Issue tools ─────────────────────────────────────────────────────
 
 
+def _resolve_issue_id(identifier: str) -> str:
+    """Resolve a numeric ID, short ID, or Sentry URL to a numeric issue ID.
+
+    Short IDs go through the shortids API; if that 404s (it does for some
+    self-hosted setups and for lower-case input) fall back to an org issue
+    search with ``shortIdLookup``.
+
+    Args:
+        identifier: Numeric issue ID, short ID, or full Sentry URL.
+
+    Returns:
+        Numeric issue ID as a string.
+
+    Raises:
+        ValueError: If the identifier cannot be resolved.
+    """
+    if identifier.isdigit():
+        return identifier
+    short_id: str | None = None
+    if identifier.startswith("http"):
+        path_match = re.search(r"/issues/(\d+)", identifier)
+        if path_match:
+            return path_match.group(1)
+        parsed = urllib.parse.urlparse(identifier)
+        short_id = urllib.parse.parse_qs(parsed.query).get("query", [None])[0]
+        if not short_id:
+            raise ValueError(f"Could not extract issue ID or short ID from URL: {identifier}")
+    else:
+        short_id = identifier
+    short_id = short_id.strip().upper()
+    try:
+        resolved = _client.get_simple(_client.org_path(f"shortids/{short_id}/"))
+        return str(resolved["group"]["id"])
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code != 404:
+            raise
+    found = _client.get_simple(
+        _client.org_path("issues/"),
+        params={"query": short_id, "shortIdLookup": 1, "limit": 1},
+    )
+    if found and isinstance(found, list) and found[0].get("shortId", "").upper() == short_id:
+        return str(found[0]["id"])
+    raise ValueError(f"Issue {short_id} not found")
+
+
+_ISSUE_KEEP = (
+    "id", "shortId", "title", "culprit", "level", "status", "substatus", "count",
+    "userCount", "firstSeen", "lastSeen", "permalink", "assignedTo", "isUnhandled",
+)
+
+
+@read_tool
+def list_issues(
+    project_slug: str | None = None,
+    query: str = "is:unresolved",
+    sort: str = "date",
+    stats_period: str = "14d",
+    limit: int = 25,
+    cursor: str | None = None,
+) -> dict[str, Any]:
+    """List issues in the organization, optionally for one project.
+
+    Args:
+        project_slug: Limit to this project (e.g. "nodus-prod"). Omit for all projects.
+        query: Sentry issue search (e.g. "is:unresolved", "is:resolved level:error").
+        sort: One of date, new, freq, user, trends.
+        stats_period: Time window for counts and matching, e.g. 24h, 14d.
+        limit: Max issues to return (1-100).
+        cursor: Pagination cursor from a previous call's ``next_cursor``.
+
+    Returns:
+        Dict with ``issues`` (trimmed) and ``next_cursor``.
+    """
+    params: dict[str, Any] = {
+        "query": query,
+        "sort": sort,
+        "statsPeriod": stats_period,
+        "limit": max(1, min(limit, 100)),
+        "cursor": cursor,
+    }
+    if project_slug:
+        params["project"] = _client.resolve_project_id(project_slug)
+    data, next_cursor = _client.get(_client.org_path("issues/"), params)
+    issues = [
+        {k: i.get(k) for k in _ISSUE_KEEP if k in i} | {"project": (i.get("project") or {}).get("slug")}
+        for i in data
+    ]
+    return {"issues": issues, "next_cursor": next_cursor}
+
+
+@write_tool
+def update_issue(
+    identifier: str,
+    status: str | None = None,
+    assigned_to: str | None = None,
+    resolve_in_next_release: bool = False,
+) -> dict[str, Any]:
+    """Resolve, ignore, reopen or assign an issue.
+
+    Args:
+        identifier: Numeric issue ID, short ID, or full Sentry URL.
+        status: resolved, unresolved or ignored. Omit to leave unchanged.
+        assigned_to: Actor to assign, e.g. "user:123", "team:abc" or a username/email. Empty string unassigns.
+        resolve_in_next_release: With status=resolved, mark resolved in the next release.
+
+    Returns:
+        Updated issue summary (id, shortId, status, assignedTo).
+    """
+    body: dict[str, Any] = {}
+    if status:
+        if status not in ("resolved", "unresolved", "ignored"):
+            raise ValueError("status must be resolved, unresolved or ignored")
+        body["status"] = status
+        if status == "resolved" and resolve_in_next_release:
+            body["statusDetails"] = {"inNextRelease": True}
+    if assigned_to is not None:
+        body["assignedTo"] = assigned_to
+    if not body:
+        raise ValueError("Nothing to update: pass status and/or assigned_to")
+    data = _client.put(f"/issues/{_resolve_issue_id(identifier)}/", body)
+    return {k: data.get(k) for k in ("id", "shortId", "status", "substatus", "assignedTo")}
+
+
+@write_tool
+def add_issue_comment(identifier: str, text: str) -> dict[str, Any]:
+    """Add a comment to an issue (e.g. link the fixing MR).
+
+    Args:
+        identifier: Numeric issue ID, short ID, or full Sentry URL.
+        text: Comment body (markdown).
+
+    Returns:
+        The created comment (id, dateCreated).
+    """
+    data = _client.post(f"/issues/{_resolve_issue_id(identifier)}/comments/", {"text": text})
+    return {"id": data.get("id"), "dateCreated": data.get("dateCreated")}
+
+
 @read_tool
 def get_issue(
     identifier: str,
@@ -55,30 +194,7 @@ def get_issue(
     Returns:
         Issue details dict.
     """
-    numeric_id: str | None = None
-
-    if identifier.isdigit():
-        # Plain numeric ID
-        numeric_id = identifier
-    elif identifier.startswith("http"):
-        # Try to extract numeric ID from URL path: /issues/9232/
-        path_match = re.search(r"/issues/(\d+)", identifier)
-        if path_match:
-            numeric_id = path_match.group(1)
-        else:
-            # Search URL like /issues/?query=NODUS-PROD-1W
-            parsed = urllib.parse.urlparse(identifier)
-            qs = urllib.parse.parse_qs(parsed.query)
-            short_id = qs.get("query", [None])[0]
-            if short_id:
-                resolved = _client.get_simple(_client.org_path(f"shortids/{short_id}/"))
-                numeric_id = str(resolved["group"]["id"])
-            else:
-                raise ValueError(f"Could not extract issue ID or short ID from URL: {identifier}")
-    else:
-        # Assume short ID like NODUS-PROD-1W
-        resolved = _client.get_simple(_client.org_path(f"shortids/{identifier}/"))
-        numeric_id = str(resolved["group"]["id"])
+    numeric_id = _resolve_issue_id(identifier)
 
     params: dict[str, Any] = {}
     if include_latest_event:
